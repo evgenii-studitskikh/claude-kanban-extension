@@ -1,5 +1,7 @@
 import {
   FIELDS,
+  HIDDEN_SECTIONS,
+  RESOLVED_SECTIONS,
   PROJECT_ID_RE,
   RESOLVED_STATES,
   RESOLVE_MUTATION_RE,
@@ -116,8 +118,47 @@ export function objectToThread(o: Obj): Thread | null {
   };
 }
 
+/**
+ * Parse the known thread-list response (see threadsListUrl). Returns null if
+ * the JSON doesn't have that shape.
+ */
+export function parseThreadSections(json: unknown): Thread[] | null {
+  if (!isObj(json) || !Array.isArray(json.sections)) return null;
+  const out: Thread[] = [];
+  for (const section of json.sections) {
+    if (!isObj(section) || !Array.isArray(section.data)) continue;
+    const status = typeof section.status === 'string' ? section.status : undefined;
+    if (status && HIDDEN_SECTIONS.has(status)) continue;
+    for (const m of section.data) {
+      if (!isObj(m) || typeof m.id !== 'string' || !THREAD_ID_RE.test(m.id)) continue;
+      const body = typeof m.body === 'string' ? m.body.trim() : '';
+      const sessions = Array.isArray(m.bound_sessions) ? m.bound_sessions : [];
+      const sessionTitle = sessions
+        .map((b) => (isObj(b) && typeof b.title === 'string' ? b.title.trim() : ''))
+        .find(Boolean);
+      const firstLine = body.split('\n').map((l) => l.trim()).find(Boolean) ?? '';
+      const title = sessionTitle || firstLine.slice(0, 120) || m.id;
+      const state = status ?? (typeof m.thread_status === 'string' ? m.thread_status : undefined);
+      const snippet = body && body !== title ? body.replace(/\s+/g, ' ').slice(0, 280) : undefined;
+      out.push({
+        id: m.id,
+        title,
+        updatedAt: toIso(m.last_reply_at) ?? toIso(m.created_at),
+        snippet,
+        resolved: state ? RESOLVED_SECTIONS.has(state) : undefined,
+        state,
+        projectId: typeof m.channel_id === 'string' ? m.channel_id : undefined,
+        source: 'api',
+      });
+    }
+  }
+  return out;
+}
+
 /** Walk any JSON value and collect everything that looks like a thread. */
 export function extractThreads(json: unknown, maxNodes = 50_000): Thread[] {
+  const known = parseThreadSections(json);
+  if (known) return known;
   const out = new Map<string, Thread>();
   const stack: unknown[] = [json];
   let seen = 0;

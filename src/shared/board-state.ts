@@ -77,3 +77,16 @@ export function columnCards(board: ProjectBoard, col: ColumnId): Thread[] {
     .sort((a, b) => (board.threads[b].updatedAt ?? '').localeCompare(board.threads[a].updatedAt ?? ''));
   return [...rest, ...manual].map((id) => board.threads[id]);
 }
+
+/** Drop threads that the authoritative list no longer returns (e.g. archived). */
+export function pruneMissing(board: ProjectBoard, keep: Set<string>): ProjectBoard {
+  const threads = Object.fromEntries(Object.entries(board.threads).filter(([id]) => keep.has(id)));
+  if (Object.keys(threads).length === Object.keys(board.threads).length) return board;
+  const entries = Object.fromEntries(Object.entries(board.entries).filter(([id]) => keep.has(id)));
+  const order = {
+    open: board.order.open.filter((id) => keep.has(id)),
+    in_progress: board.order.in_progress.filter((id) => keep.has(id)),
+    resolved: board.order.resolved.filter((id) => keep.has(id)),
+  };
+  return { ...board, threads, entries, order };
+}

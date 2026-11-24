@@ -72,3 +72,44 @@ describe('resolve learning', () => {
     expect(flipTemplate(tpl)!.body).toBe('{"thread":"{{threadId}}","resolved":false}');
   });
 });
+
+describe('parseThreadSections (real claude.ai shape)', () => {
+  it('reads threads from sections', () => {
+    const json = {
+      items: [],
+      rows_by_id: [],
+      truncated: false,
+      sections: [
+        { status: 'needs_input', count: '0', data: [] },
+        {
+          status: 'working',
+          count: '1',
+          data: [
+            {
+              id: 'cmsg_W1',
+              body: 'Spec of the extension\nmore text',
+              bound_sessions: [{ id: 'cse_1', status: 'active', status_bucket: 'working', title: 'Build Kanban board' }],
+              channel_id: 'chan_P',
+              created_at: '2026-11-24T10:36:22Z',
+              last_reply_at: '2026-11-24T12:03:11Z',
+              thread_status: 'working',
+            },
+          ],
+        },
+        { status: 'resolved', count: '1', data: [{ id: 'cmsg_R1', body: 'Old task', bound_sessions: [] }] },
+        { status: 'archived', count: '1', data: [{ id: 'cmsg_A1', body: 'Gone', bound_sessions: [] }] },
+      ],
+    };
+    const threads = extractThreads(json);
+    expect(threads.map((t) => t.id)).toEqual(['cmsg_W1', 'cmsg_R1']);
+    expect(threads[0]).toMatchObject({
+      title: 'Build Kanban board',
+      state: 'working',
+      resolved: false,
+      projectId: 'chan_P',
+      updatedAt: '2026-11-24T12:03:11.000Z',
+      snippet: 'Spec of the extension more text',
+    });
+    expect(threads[1]).toMatchObject({ title: 'Old task', resolved: true, state: 'resolved' });
+  });
+});
