@@ -28,6 +28,32 @@ export function threadUrl(projectId: string, threadId: string): string {
 }
 
 /* ------------------------------------------------------------------------ */
+/* Known endpoints (verified on claude.ai, 2026-11-24)                       */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * claude.ai's /v1 API rejects requests without this header
+ * ("anthropic-version: header is required").
+ */
+export const API_HEADERS: Record<string, string> = { 'anthropic-version': '2023-06-01' };
+
+/**
+ * Thread list of a project. Response shape:
+ *   { sections: [{ status, count, data: [rootMessage, ...] }], truncated }
+ * where status is one of needs_input | failed | working | idle | resolved | archived,
+ * and each root message has id (cmsg_…), body (first message text),
+ * bound_sessions[0].title (thread title), last_reply_at, created_at, thread_status.
+ */
+export function threadsListUrl(projectId: string): string {
+  return `/v1/code/channels/${encodeURIComponent(projectId)}/threads?limit=100`;
+}
+
+/** Section statuses that mean "resolved" natively. */
+export const RESOLVED_SECTIONS = new Set(['resolved']);
+/** Section statuses that are hidden from the board entirely. */
+export const HIDDEN_SECTIONS = new Set(['archived']);
+
+/* ------------------------------------------------------------------------ */
 /* Network sniffing (page-hook runs in the page's own JS world)              */
 /* ------------------------------------------------------------------------ */
 
@@ -92,6 +118,7 @@ export const RESOLVED_STATES = new Set(['resolved', 'archived', 'closed']);
  */
 export const DEFAULT_COLUMN_BY_STATE: Record<string, 'open' | 'in_progress'> = {
   working: 'in_progress',
+  needs_input: 'in_progress',
   blocked: 'in_progress',
   review_ready: 'in_progress',
 };

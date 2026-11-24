@@ -49,3 +49,14 @@ describe('board state', () => {
     expect(b.threads.a).toMatchObject({ title: 'Real', snippet: 's', source: 'api' });
   });
 });
+
+describe('pruneMissing', () => {
+  it('drops threads not in the list', async () => {
+    const { pruneMissing } = await import('../src/shared/board-state');
+    let b = mergeThreads(emptyBoard(), [t('a'), t('b')]);
+    b = moveCard(b, 'b', 'open', 0);
+    b = pruneMissing(b, new Set(['a']));
+    expect(Object.keys(b.threads)).toEqual(['a']);
+    expect(b.order.open).toEqual(['a']);
+  });
+});

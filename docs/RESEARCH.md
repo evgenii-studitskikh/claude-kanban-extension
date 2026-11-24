@@ -1,5 +1,21 @@
 # How claude.ai loads threads — what to verify
 
+## Verified (2026-11-24, in a signed-in Chrome)
+
+* Thread list: `GET /v1/code/channels/{chan_id}/threads?limit=100`, sent with the header
+  `anthropic-version: 2023-06-01` (without it the API answers 400). The response is
+  `{ sections: [{ status, count, data: [rootMessage…] }], truncated }`, with section statuses
+  `needs_input`, `failed`, `working`, `idle`, `resolved`, `archived`.
+  Each root message has `id` (`cmsg_…`), `body` (the first message), `bound_sessions[0].title`
+  (the thread title), `last_reply_at`, `created_at`, `thread_status`.
+* The project page does not render thread links as `<a href>` elements, so the DOM fallback finds nothing there.
+* The page also loads `GET /v1/code/channels/{chan_id}/timeline?limit=200` (project chat messages) and
+  `GET /v1/code/channels/{chan_id}/threads/{cmsg_id}?limit=1`.
+* Still unknown: the request that resolves a thread. It wasn't in the loaded JS bundles; it's learned
+  at runtime from the first manual resolve.
+
+The sections below are the original, unverified assumptions used by the generic fallback.
+
 The research was done without being signed in to claude.ai, so the real endpoints are **not confirmed**.
 The extension is designed not to depend on exact URLs: it inspects any JSON the page loads and learns the
 resolve request by example. The heuristics still rely on the assumptions below — verify them in DevTools.

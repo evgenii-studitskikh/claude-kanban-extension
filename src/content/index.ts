@@ -6,8 +6,8 @@
  *  - syncing the "resolved" column with claude.ai's native resolve.
  */
 import { BoardView } from '../board/board';
-import { mergeThreads, moveCard } from '../shared/board-state';
-import { projectIdFromLocation, threadUrl } from '../shared/claude-endpoints';
+import { mergeThreads, moveCard, pruneMissing } from '../shared/board-state';
+import { API_HEADERS, projectIdFromLocation, threadsListUrl, threadUrl } from '../shared/claude-endpoints';
 import {
   classifyMutation,
   extractThreads,
@@ -32,6 +32,8 @@ let board: ProjectBoard | null = null;
 let buffered: { threads: Thread[]; listUrl?: string }[] = [];
 let view: BoardView | null = null;
 let lastLoggedSignature = '';
+/** Whether the last request to the thread list endpoint succeeded. */
+let apiOk = false;
 
 const log = (...a: unknown[]) => settings.debug && console.log(TAG, ...a);
 
@@ -135,7 +137,7 @@ async function syncResolve(threadId: string, resolved: boolean): Promise<boolean
     method: tpl.method,
     url: fillTemplate(tpl.url, threadId, projectId),
     body: tpl.body ? fillTemplate(tpl.body, threadId, projectId) : undefined,
-    headers: tpl.headers,
+    headers: { ...API_HEADERS, ...tpl.headers },
   });
   view?.setPending(threadId, false);
   const ok = res.status >= 200 && res.status < 300;
@@ -180,15 +182,28 @@ function onOpen(id: string, newTab: boolean): void {
 
 async function refresh(): Promise<void> {
   if (!projectId || !board) return;
-  ingest(scanDom(projectId));
-  if (board.listEndpoint) {
-    const url = fillTemplate(board.listEndpoint, '', projectId);
-    const res = await replay({ method: 'GET', url });
-    if (res.status >= 200 && res.status < 300 && res.body) {
-      ingest(extractThreads(res.body), url);
-    } else {
-      log('re-request of list endpoint failed', url, res);
-    }
+  const pid = projectId;
+  ingest(scanDom(pid));
+
+  // Primary source: the project's thread list endpoint.
+  const url = threadsListUrl(pid);
+  const res = await replay({ method: 'GET', url, headers: API_HEADERS });
+  if (res.status >= 200 && res.status < 300 && res.body && projectId === pid && board) {
+    apiOk = true;
+    const threads = extractThreads(res.body);
+    log(`GET ${url} → ${threads.length} thread(s)`);
+    const truncated = typeof res.body === 'object' && (res.body as { truncated?: boolean }).truncated;
+    if (!truncated) board = pruneMissing(board, new Set(threads.map((t) => t.id)));
+    ingest(threads);
+  } else if (board?.listEndpoint) {
+    apiOk = false;
+    log('thread list request failed, falling back to learned endpoint', url, res.status, res.error);
+    const fallback = fillTemplate(board.listEndpoint, '', pid);
+    const r2 = await replay({ method: 'GET', url: fallback, headers: API_HEADERS });
+    if (r2.status >= 200 && r2.status < 300 && r2.body) ingest(extractThreads(r2.body), fallback);
+  } else {
+    apiOk = false;
+    log('thread list request failed', url, res.status, res.error);
   }
   updateStatus();
 }
@@ -197,7 +212,7 @@ function updateStatus(): void {
   if (!view || !board) return;
   const n = Object.keys(board.threads).length;
   const sync = templateFor('resolve') ? 'resolve sync: on' : 'resolve sync: not learned yet';
-  const src = board.listEndpoint ? 'source: API' : 'source: page';
+  const src = apiOk || board.listEndpoint ? 'source: API' : 'source: page';
   view.setStatus({ text: `${n} thread(s) · ${src} · ${sync}` });
 }
 
@@ -242,7 +257,7 @@ async function onRoute(): Promise<void> {
   for (const b of early) ingest(b.threads, b.listUrl);
   log('project', next, 'loaded with', Object.keys(board.threads).length, 'cached thread(s)');
   render();
-  if (view?.isOpen) void refresh();
+  void refresh();
 }
 
 function watchUrl(): void {
