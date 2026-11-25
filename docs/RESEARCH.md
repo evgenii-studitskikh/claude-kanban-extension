@@ -11,6 +11,11 @@
 * The project page does not render thread links as `<a href>` elements, so the DOM fallback finds nothing there.
 * The page also loads `GET /v1/code/channels/{chan_id}/timeline?limit=200` (project chat messages) and
   `GET /v1/code/channels/{chan_id}/threads/{cmsg_id}?limit=1`.
+  Cards use the latter to show the thread's last message (`threadMessagesUrl`). Its response shape is
+  **not verified**: `parseLastMessage` treats any object with a `cmsg_…` id and a `body`/`text`/`content`
+  field as a message and picks the newest by `created_at`. To verify, open a thread with DevTools → Network,
+  find that request and check that the newest message is in the response. If cards keep showing the first
+  message, adjust `MESSAGE_FIELDS` or the URL.
 * Still unknown: the request that resolves a thread. It wasn't in the loaded JS bundles; it's learned
   at runtime from the first manual resolve.
 

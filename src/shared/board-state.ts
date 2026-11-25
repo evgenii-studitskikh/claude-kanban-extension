@@ -90,3 +90,29 @@ export function pruneMissing(board: ProjectBoard, keep: Set<string>): ProjectBoa
   };
   return { ...board, threads, entries, order };
 }
+
+/** Cache key for a thread's last message: refetch when it changes. */
+export function lastMessageKey(t: Thread): string {
+  return t.updatedAt ?? '';
+}
+
+/**
+ * Threads whose last message should be (re)fetched: never fetched, or the
+ * thread had activity since. Newest first, at most `limit`. DOM-only threads
+ * are skipped because they may not exist in the API.
+ */
+export function threadsNeedingLastMessage(board: ProjectBoard, limit: number): Thread[] {
+  return Object.values(board.threads)
+    .filter((t) => t.source === 'api' && t.lastMessageFor !== lastMessageKey(t))
+    .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))
+    .slice(0, limit);
+}
+
+/** Store a fetched last message. Returns a new board (or the same one if unchanged). */
+export function setLastMessage(board: ProjectBoard, id: string, text: string | null, key: string): ProjectBoard {
+  const t = board.threads[id];
+  if (!t) return board;
+  const lastMessage = text ?? undefined;
+  if (t.lastMessage === lastMessage && t.lastMessageFor === key) return board;
+  return { ...board, threads: { ...board.threads, [id]: { ...t, lastMessage, lastMessageFor: key } } };
+}

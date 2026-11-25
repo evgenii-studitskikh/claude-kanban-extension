@@ -23,6 +23,8 @@ Chrome → `chrome://extensions` → enable **Developer mode** → **Load unpack
 * On a project page a **▦ Kanban** button appears in the bottom-right corner (or press `Alt+K`). `Esc` closes the board.
 * Clicking a card opens the thread in the same tab (Ctrl/Cmd+click opens a new tab).
 * Drag cards between and within columns; columns and order are saved per project.
+* Cards show a fragment of the thread's last message. It is fetched while the board is open, cached, and
+  refetched only after new activity in the thread. Hover the text to see whether it is the first or the last message.
 * Navigating to another project switches the board without a page reload.
 * The DevTools console shows what the extension found: `[Claude Kanban] … thread(s) in project …` with a table
   of threads, which JSON responses contained threads, and which requests look like a "resolve".
