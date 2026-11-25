@@ -21,7 +21,9 @@ Chrome → `chrome://extensions` → enable **Developer mode** → **Load unpack
 ## Usage
 
 * On a project page a **▦ Kanban** button appears in the bottom-right corner (or press `Alt+K`). `Esc` closes the board.
-* Clicking a card opens the thread in the same tab (Ctrl/Cmd+click opens a new tab).
+* Clicking a card opens the thread's chat in a popup over the board, so you can keep talking to Claude without
+  leaving the board. `Esc`, **Close** or a click outside closes it; **Open full page** opens the thread in the tab.
+  Shift+click opens the thread in the same tab, Ctrl/Cmd+click in a new tab.
 * Drag cards between and within columns; columns and order are saved per project.
 * Cards show a fragment of the thread's last message. It is fetched while the board is open, cached, and
   refetched only after new activity in the thread. Hover the text to see whether it is the first or the last message.
@@ -49,7 +51,7 @@ reopened in Claude goes back to **Open**. **Open** and **In progress** are local
 | `src/shared/extract.ts` | Heuristics that find thread-like objects in any JSON; learning the resolve template. |
 | `src/shared/board-state.ts` | Column and card-order logic (unit tested). |
 | `src/content/*` | Content script: per-project routing, DOM fallback, storage, sync. |
-| `src/board/*` | Board UI inside a Shadow DOM. |
+| `src/board/*` | Board UI inside a Shadow DOM. `peek.ts` is the thread chat popup. |
 
 ```bash
 npm run typecheck && npm test

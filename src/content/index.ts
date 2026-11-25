@@ -328,6 +328,7 @@ async function onRoute(): Promise<void> {
   board = null;
   lastLoggedSignature = '';
   view?.setAvailable(!!next);
+  view?.resetPeek();
   if (!next) return;
   const loaded = await loadBoard(next);
   if (projectId !== next) return; // user navigated again meanwhile
@@ -365,7 +366,12 @@ async function main(): Promise<void> {
   if (document.readyState === 'loading') {
     await new Promise((r) => document.addEventListener('DOMContentLoaded', r, { once: true }));
   }
-  view = new BoardView({ onMove, onOpen, onRefresh: () => void refresh() });
+  view = new BoardView({
+    onMove,
+    onOpen,
+    onRefresh: () => void refresh(),
+    threadHref: (id) => (projectId ? threadUrl(projectId, id) : null),
+  });
   view.attach();
   watchUrl();
   watchDom();

@@ -67,6 +67,23 @@ button.ghost:hover { background: var(--panel); }
 .badge { border: 1px solid var(--border); border-radius: 999px; padding: 0 6px; }
 .placeholder { height: 4px; border-radius: 2px; background: var(--accent); }
 .empty { color: var(--muted); font-size: 12.5px; text-align: center; padding: 18px 6px; }
+.peek {
+  position: absolute; inset: 0; z-index: 10; background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center; padding: 3vh 3vw;
+}
+.peek[hidden] { display: none; }
+.peek-panel {
+  width: min(1000px, 100%); height: 100%; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 14px; overflow: hidden; display: flex; flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0,0,0,.35);
+}
+.peek-panel header { padding: 10px 14px; }
+.peek-title { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.peek-body { position: relative; flex: 1; min-height: 0; }
+.peek-body iframe { width: 100%; height: 100%; border: 0; display: block; background: var(--bg); }
+.peek-body iframe.loading { visibility: hidden; }
+.peek-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.peek-loading[hidden] { display: none; }
 .toast {
   position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
   background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px;
