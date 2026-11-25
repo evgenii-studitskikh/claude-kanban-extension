@@ -6,14 +6,29 @@
  *  - syncing the "resolved" column with claude.ai's native resolve.
  */
 import { BoardView } from '../board/board';
-import { mergeThreads, moveCard, pruneMissing } from '../shared/board-state';
-import { API_HEADERS, projectIdFromLocation, threadsListUrl, threadUrl } from '../shared/claude-endpoints';
+import {
+  lastMessageKey,
+  mergeThreads,
+  moveCard,
+  pruneMissing,
+  setLastMessage,
+  threadsNeedingLastMessage,
+} from '../shared/board-state';
+import {
+  API_HEADERS,
+  THREAD_MESSAGES_URL_RE,
+  projectIdFromLocation,
+  threadMessagesUrl,
+  threadsListUrl,
+  threadUrl,
+} from '../shared/claude-endpoints';
 import {
   classifyMutation,
   extractThreads,
   fillTemplate,
   flipTemplate,
   makeTemplate,
+  parseLastMessage,
   templateUrlFor,
 } from '../shared/extract';
 import type { ColumnId, ProjectBoard, RequestTemplate, ResolveTemplates, Thread } from '../shared/types';
@@ -23,6 +38,9 @@ import { loadBoard, loadSettings, loadTemplates, saveBoard, saveTemplates, type 
 
 const TAG = '[Claude Kanban]';
 const REFRESH_MS = 60_000;
+/** Last-message requests per refresh, and how many run at once. */
+const LAST_MESSAGE_BATCH = 40;
+const LAST_MESSAGE_CONCURRENCY = 3;
 
 let settings: Settings = { debug: true };
 let templates: ResolveTemplates = {};
@@ -43,6 +61,7 @@ const log = (...a: unknown[]) => settings.debug && console.log(TAG, ...a);
 
 onPageMessage((msg) => {
   if (msg.type === 'json') {
+    if (msg.method === 'GET') noteLastMessage(msg.url, msg.body);
     const threads = extractThreads(msg.body);
     if (!threads.length) return;
     log(`JSON ${msg.method} ${msg.url} → ${threads.length} thread(s)`);
@@ -90,6 +109,66 @@ function logThreads(): void {
   console.groupCollapsed(`${TAG} ${rows.length} thread(s) in project ${projectId}`);
   console.table(rows);
   console.groupEnd();
+}
+
+/* ------------------------------------------------------------------ */
+/* Last message on cards                                               */
+/* ------------------------------------------------------------------ */
+
+/** The page loaded a thread's messages itself: reuse it for free. */
+function noteLastMessage(url: string, body: unknown): void {
+  const m = THREAD_MESSAGES_URL_RE.exec(url);
+  if (!m || !board || m[1] !== projectId) return;
+  const t = board.threads[m[2]];
+  const text = parseLastMessage(body, m[2]);
+  if (!t || !text) return;
+  board = setLastMessage(board, t.id, text, lastMessageKey(t));
+  void persist();
+  render();
+}
+
+let loadingLastMessages = false;
+
+/**
+ * Fetch the latest message of threads that changed since we last looked.
+ * Runs only while the board is open; results are cached on the thread and
+ * keyed by its last-activity time, so unchanged threads are never refetched.
+ */
+async function loadLastMessages(): Promise<void> {
+  if (loadingLastMessages || !projectId || !board || !view?.isOpen) return;
+  loadingLastMessages = true;
+  const pid = projectId;
+  const queue = threadsNeedingLastMessage(board, LAST_MESSAGE_BATCH);
+  let changed = 0;
+  const worker = async () => {
+    for (let t = queue.shift(); t; t = queue.shift()) {
+      if (projectId !== pid || !board) return;
+      const key = lastMessageKey(t);
+      const res = await replay({ method: 'GET', url: threadMessagesUrl(pid, t.id), headers: API_HEADERS });
+      if (projectId !== pid || !board) return;
+      if (res.status < 200 || res.status >= 300) {
+        log('last message request failed', t.id, res.status, res.error);
+        continue; // retried on the next refresh
+      }
+      // Keep the old text if the shape wasn't recognised, but mark it as fetched.
+      const text = parseLastMessage(res.body, t.id) ?? board.threads[t.id]?.lastMessage ?? null;
+      const next = setLastMessage(board, t.id, text, key);
+      if (next !== board) {
+        board = next;
+        changed++;
+        render();
+      }
+    }
+  };
+  try {
+    await Promise.all(Array.from({ length: LAST_MESSAGE_CONCURRENCY }, worker));
+  } finally {
+    loadingLastMessages = false;
+  }
+  if (changed && projectId === pid) {
+    log(`loaded last message for ${changed} thread(s)`);
+    void persist();
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -206,6 +285,7 @@ async function refresh(): Promise<void> {
     log('thread list request failed', url, res.status, res.error);
   }
   updateStatus();
+  void loadLastMessages();
 }
 
 function updateStatus(): void {

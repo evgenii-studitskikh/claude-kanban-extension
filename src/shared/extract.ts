@@ -1,5 +1,6 @@
 import {
   FIELDS,
+  MESSAGE_FIELDS,
   HIDDEN_SECTIONS,
   RESOLVED_SECTIONS,
   PROJECT_ID_RE,
@@ -153,6 +154,60 @@ export function parseThreadSections(json: unknown): Thread[] | null {
     }
   }
   return out;
+}
+
+/** Longest snippet kept for a card. */
+const SNIPPET_MAX = 280;
+
+function toSnippet(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().slice(0, SNIPPET_MAX);
+}
+
+/**
+ * Find the latest message in a thread-messages response (see
+ * threadMessagesUrl). The shape isn't verified, so this walks the JSON and
+ * treats every object with a `cmsg_` id and a text field as a message. The one
+ * with the newest timestamp wins; without timestamps, the first reply (not the
+ * root message) wins, then the root itself. Returns null if nothing matched.
+ */
+export function parseLastMessage(json: unknown, threadId: string, maxNodes = 20_000): string | null {
+  type Candidate = { text: string; at?: number; isRoot: boolean; index: number };
+  const found: Candidate[] = [];
+  const stack: unknown[] = [json];
+  let seen = 0;
+  while (stack.length && seen++ < maxNodes) {
+    const v = stack.shift();
+    if (Array.isArray(v)) {
+      stack.push(...v);
+    } else if (isObj(v)) {
+      const id = v.id ?? v.uuid;
+      if (typeof id === 'string' && THREAD_ID_RE.test(id)) {
+        const text = firstString(v, MESSAGE_FIELDS.text);
+        if (text) {
+          let at: number | undefined;
+          for (const k of MESSAGE_FIELDS.createdAt) {
+            const iso = toIso(v[k]);
+            if (iso) {
+              at = Date.parse(iso);
+              break;
+            }
+          }
+          found.push({ text, at, isRoot: id === threadId, index: found.length });
+        }
+      }
+      for (const x of Object.values(v)) if (typeof x === 'object' && x) stack.push(x);
+    }
+  }
+  if (!found.length) return null;
+  const dated = found.filter((c) => c.at !== undefined);
+  let best: Candidate;
+  if (dated.length) {
+    best = dated.reduce((a, b) => (b.at! > a.at! ? b : a));
+  } else {
+    best = found.find((c) => !c.isRoot) ?? found[0];
+  }
+  const snippet = toSnippet(best.text);
+  return snippet || null;
 }
 
 /** Walk any JSON value and collect everything that looks like a thread. */

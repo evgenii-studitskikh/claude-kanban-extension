@@ -48,6 +48,25 @@ export function threadsListUrl(projectId: string): string {
   return `/v1/code/channels/${encodeURIComponent(projectId)}/threads?limit=100`;
 }
 
+/**
+ * Messages of one thread. The project page itself calls this with `limit=1`
+ * when it shows a thread, which (VERIFY) returns the latest message. Used to
+ * show the last message on cards. The exact response shape is not verified,
+ * so it is parsed heuristically (see parseLastMessage in extract.ts).
+ */
+export function threadMessagesUrl(projectId: string, threadId: string): string {
+  return `/v1/code/channels/${encodeURIComponent(projectId)}/threads/${encodeURIComponent(threadId)}?limit=1`;
+}
+
+/** Matches a thread-messages URL; groups: project id, thread id. */
+export const THREAD_MESSAGES_URL_RE = /\/v1\/code\/channels\/(chan_[A-Za-z0-9]+)\/threads\/(cmsg_[A-Za-z0-9]+)(?:[/?#]|$)/;
+
+/** Candidate fields for a message's text and its creation time. VERIFY */
+export const MESSAGE_FIELDS = {
+  text: ['body', 'text', 'content', 'message'],
+  createdAt: ['created_at', 'sent_at', 'updated_at', 'ts'],
+} as const;
+
 /** Section statuses that mean "resolved" natively. */
 export const RESOLVED_SECTIONS = new Set(['resolved']);
 /** Section statuses that are hidden from the board entirely. */

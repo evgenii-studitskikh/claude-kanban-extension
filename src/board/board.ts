@@ -161,10 +161,12 @@ export class BoardView {
       meta.append(b);
     }
     card.append(title, meta);
-    if (t.snippet) {
+    const snippet = t.lastMessage ?? t.snippet;
+    if (snippet) {
       const s = document.createElement('div');
       s.className = 'snippet';
-      s.textContent = t.snippet;
+      s.textContent = snippet;
+      s.title = t.lastMessage ? 'Last message' : 'First message';
       card.append(s);
     }
 

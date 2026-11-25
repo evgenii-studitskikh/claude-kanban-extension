@@ -12,6 +12,13 @@ export interface Thread {
   /** ISO date of the last activity, if known. */
   updatedAt?: string;
   snippet?: string;
+  /** Text of the latest message in the thread, fetched lazily. */
+  lastMessage?: string;
+  /**
+   * Cache key for `lastMessage`: the `updatedAt` value the thread had when it
+   * was fetched ('' if unknown). Refetch only when `updatedAt` changes.
+   */
+  lastMessageFor?: string;
   /** Native resolved flag from claude.ai; undefined = unknown. */
   resolved?: boolean;
   /** Native state string (working, blocked, ...), if known. */
