@@ -16,6 +16,12 @@
   field as a message and picks the newest by `created_at`. To verify, open a thread with DevTools → Network,
   find that request and check that the newest message is in the response. If cards keep showing the first
   message, adjust `MESSAGE_FIELDS` or the URL.
+* Thread chat popup (2026-11-25): claude.ai pages send `X-Frame-Options: SAMEORIGIN`, so the project page can
+  load itself in an iframe. The thread page loads and works there (sending messages included). Each pane is
+  rendered inside `[data-tile-host="thread:cmsg_…"]` (`display: contents`; the project chat is
+  `data-tile-host="coordinator"`), and panes are separated by a `[data-tile-divider]` resize handle. The popup
+  pins the thread pane's nearest box to the whole frame and hides the divider (`threadPaneSelector`,
+  `PANE_DIVIDER_SELECTOR`). If those attributes change, the popup falls back to the full project page.
 * Still unknown: the request that resolves a thread. It wasn't in the loaded JS bundles; it's learned
   at runtime from the first manual resolve.
 

@@ -1,11 +1,14 @@
 import { columnCards } from '../shared/board-state';
 import { COLUMNS, type ColumnId, type ProjectBoard, type Thread } from '../shared/types';
+import { ThreadPeek } from './peek';
 import { CSS } from './styles';
 
 export interface BoardCallbacks {
   onMove(threadId: string, to: ColumnId, index: number): void;
   onOpen(threadId: string, newTab: boolean): void;
   onRefresh(): void;
+  /** URL of a thread page, or null when not on a project. */
+  threadHref(threadId: string): string | null;
 }
 
 export interface BoardStatus {
@@ -25,6 +28,7 @@ export class BoardView {
   private dragId: string | null = null;
   private pendingIds = new Set<string>();
   private last: ProjectBoard | null = null;
+  private peek: ThreadPeek;
 
   constructor(private cb: BoardCallbacks) {
     this.host = document.createElement('claude-kanban-root');
@@ -50,12 +54,17 @@ export class BoardView {
     this.columnsEl = $('.columns');
     this.statusEl = $('.status');
     this.toastEl = $('.toast');
+    this.peek = new ThreadPeek(this.overlay, {
+      onOpenPage: (id) => this.cb.onOpen(id, false),
+      onClosed: () => this.cb.onRefresh(),
+    });
 
     this.launcher.addEventListener('click', () => this.open());
     $('[data-act="close"]').addEventListener('click', () => this.close());
     $('[data-act="refresh"]').addEventListener('click', () => this.cb.onRefresh());
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.isOpen) this.close();
+      if (e.key === 'Escape' && this.peek.isOpen) this.peek.close();
+      else if (e.key === 'Escape' && this.isOpen) this.close();
       if (e.altKey && (e.key === 'k' || e.key === 'K' || e.code === 'KeyK') && !this.launcher.hidden) {
         e.preventDefault();
         this.isOpen ? this.close() : this.open();
@@ -77,6 +86,17 @@ export class BoardView {
     if (!available) this.close();
   }
 
+  /** Forget the loaded thread page (the project changed). */
+  resetPeek(): void {
+    this.peek.reset();
+  }
+
+  /** Show a thread's chat in a popup over the board. */
+  openThread(t: Pick<Thread, 'id' | 'title'>): void {
+    const href = this.cb.threadHref(t.id);
+    if (href) this.peek.open(t.id, t.title, href);
+  }
+
   open(): void {
     this.overlay.hidden = false;
     this.launcher.hidden = true;
@@ -85,6 +105,8 @@ export class BoardView {
 
   close(): void {
     if (this.overlay.hidden) return;
+    this.peek.close();
+    this.peek.reset(); // don't keep a second copy of claude.ai running in the background
     this.overlay.hidden = true;
     this.launcher.hidden = false;
   }
@@ -170,9 +192,16 @@ export class BoardView {
       card.append(s);
     }
 
-    card.addEventListener('click', (e) => this.cb.onOpen(t.id, e.metaKey || e.ctrlKey || e.button === 1));
+    // Click: chat in a popup. Shift+click: full page. Ctrl/Cmd+click: new tab.
+    const activate = (e: MouseEvent | KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey) this.cb.onOpen(t.id, true);
+      else if (e.shiftKey) this.cb.onOpen(t.id, false);
+      else this.openThread(t);
+    };
+    card.addEventListener('click', activate);
+    card.addEventListener('auxclick', (e) => e.button === 1 && this.cb.onOpen(t.id, true));
     card.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') this.cb.onOpen(t.id, e.metaKey || e.ctrlKey);
+      if (e.key === 'Enter') activate(e);
     });
     card.addEventListener('dragstart', (e) => {
       this.dragId = t.id;

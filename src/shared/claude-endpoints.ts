@@ -143,6 +143,25 @@ export const DEFAULT_COLUMN_BY_STATE: Record<string, 'open' | 'in_progress'> = {
 };
 
 /* ------------------------------------------------------------------------ */
+/* Thread peek (the thread's chat in a popup over the board)                 */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * The project page renders each open pane inside an element marked
+ * `data-tile-host="thread:cmsg_…"` (the project chat is `"coordinator"`).
+ * The peek popup loads the thread page in a same-origin iframe and pins this
+ * pane to the whole frame, hiding the project chat and the sidebar.
+ * Verified on claude.ai, 2026-11-25. If it stops matching, the popup still
+ * works but shows the full project page.
+ */
+export function threadPaneSelector(threadId: string): string {
+  return `[data-tile-host="thread:${threadId}"]`;
+}
+
+/** Resize handle between panes; it would float over the pinned thread pane. */
+export const PANE_DIVIDER_SELECTOR = '[data-tile-divider]';
+
+/* ------------------------------------------------------------------------ */
 /* DOM fallback — used when no JSON endpoint has been seen                   */
 /* ------------------------------------------------------------------------ */
 
