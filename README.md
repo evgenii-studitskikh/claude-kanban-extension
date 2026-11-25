@@ -1,4 +1,4 @@
-# Claude Threads Kanban
+# Kanban for Claude Projects
 
 Unofficial Chrome extension (Manifest V3) that shows the threads of a claude.ai project
 (`claude.ai/code/project/chan_…`) as a Kanban board: **Open**, **In progress**, **Resolved**.
@@ -15,6 +15,8 @@ npm run build        # or: npm run watch
 ```
 
 Chrome → `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select the `dist/` folder.
+
+`npm run package` builds a Chrome Web Store zip in `release/`. See [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## Usage
 
@@ -50,6 +52,10 @@ reopened in Claude goes back to **Open**. **Open** and **In progress** are local
 ```bash
 npm run typecheck && npm test
 ```
+
+## Privacy
+
+See [PRIVACY.md](PRIVACY.md).
 
 ## Limitations
 

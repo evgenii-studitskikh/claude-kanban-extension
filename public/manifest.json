@@ -1,24 +1,42 @@
 {
   "manifest_version": 3,
-  "name": "Claude Threads Kanban",
+  "name": "Kanban for Claude Projects",
+  "short_name": "Claude Kanban",
   "version": "0.1.0",
-  "description": "Shows threads of a claude.ai project as a Kanban board. Unofficial; all data stays in your browser.",
-  "permissions": ["storage"],
-  "host_permissions": ["https://claude.ai/*"],
+  "description": "Unofficial. See the threads of a claude.ai project as a Kanban board. All data stays in your browser.",
+  "minimum_chrome_version": "111",
+  "homepage_url": "https://github.com/evgenii-studitskikh/claude-kanban-extension",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://claude.ai/*"
+  ],
   "content_scripts": [
     {
-      "matches": ["https://claude.ai/*"],
-      "js": ["page-hook.js"],
+      "matches": [
+        "https://claude.ai/*"
+      ],
+      "js": [
+        "page-hook.js"
+      ],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
-      "matches": ["https://claude.ai/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://claude.ai/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_start"
     }
   ],
   "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
     "128": "icon128.png"
   }
 }
