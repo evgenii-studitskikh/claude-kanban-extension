@@ -24,6 +24,10 @@ Chrome → `chrome://extensions` → enable **Developer mode** → **Load unpack
 * Clicking a card opens the thread's chat in a popup over the board, so you can keep talking to Claude without
   leaving the board. `Esc`, **Close** or a click outside closes it; **Open full page** opens the thread in the tab.
   Shift+click opens the thread in the same tab, Ctrl/Cmd+click in a new tab.
+* The search box in the header filters cards by title, first message and last message (every word must match).
+  The **Working**, **Needs input**, **Failed** and **Idle** chips show only threads with that native status; pick
+  several to combine them. Column counters show `shown / total` while a filter is on, and `Esc` in the search box
+  clears it. Dragging still works while filtered; hidden cards keep their place.
 * Drag cards between and within columns; columns and order are saved per project.
 * Cards show a fragment of the thread's last message. It is fetched while the board is open, cached, and
   refetched only after new activity in the thread. Hover the text to see whether it is the first or the last message.
