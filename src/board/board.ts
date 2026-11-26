@@ -1,4 +1,5 @@
 import { columnCards } from '../shared/board-state';
+import { emptyFilter, fullDropIndex, isFilterActive, matchesFilter, STATUS_FILTERS } from '../shared/filter';
 import { COLUMNS, type ColumnId, type ProjectBoard, type Thread } from '../shared/types';
 import { ThreadPeek } from './peek';
 import { CSS } from './styles';
@@ -29,6 +30,9 @@ export class BoardView {
   private pendingIds = new Set<string>();
   private last: ProjectBoard | null = null;
   private peek: ThreadPeek;
+  private filter = emptyFilter();
+  private searchEl: HTMLInputElement;
+  private chipsEl: HTMLElement;
 
   constructor(private cb: BoardCallbacks) {
     this.host = document.createElement('claude-kanban-root');
@@ -40,6 +44,8 @@ export class BoardView {
         <div class="overlay" hidden role="dialog" aria-label="Kanban">
           <header>
             <h1>Project threads</h1>
+            <input class="search" type="search" placeholder="Search threads" aria-label="Search threads" />
+            <div class="chips" role="group" aria-label="Filter by status"></div>
             <span class="status"></span>
             <button class="ghost" data-act="refresh">Refresh</button>
             <button class="ghost" data-act="close" title="Esc">Close</button>
@@ -54,6 +60,9 @@ export class BoardView {
     this.columnsEl = $('.columns');
     this.statusEl = $('.status');
     this.toastEl = $('.toast');
+    this.searchEl = $('.search');
+    this.chipsEl = $('.chips');
+    this.buildFilterUi();
     this.peek = new ThreadPeek(this.overlay, {
       onOpenPage: (id) => this.cb.onOpen(id, false),
       onClosed: () => this.cb.onRefresh(),
@@ -64,12 +73,49 @@ export class BoardView {
     $('[data-act="refresh"]').addEventListener('click', () => this.cb.onRefresh());
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && this.peek.isOpen) this.peek.close();
+      else if (e.key === 'Escape' && this.isOpen && this.clearSearchOnEscape(e)) return;
       else if (e.key === 'Escape' && this.isOpen) this.close();
       if (e.altKey && (e.key === 'k' || e.key === 'K' || e.code === 'KeyK') && !this.launcher.hidden) {
         e.preventDefault();
         this.isOpen ? this.close() : this.open();
       }
     });
+  }
+
+  private buildFilterUi(): void {
+    this.searchEl.addEventListener('input', () => {
+      this.filter.query = this.searchEl.value;
+      this.rerender();
+    });
+    for (const { id, label } of STATUS_FILTERS) {
+      const chip = document.createElement('button');
+      chip.className = 'chip';
+      chip.type = 'button';
+      chip.dataset.state = id;
+      chip.textContent = label;
+      chip.setAttribute('aria-pressed', 'false');
+      chip.addEventListener('click', () => {
+        const on = !this.filter.states.has(id);
+        on ? this.filter.states.add(id) : this.filter.states.delete(id);
+        chip.setAttribute('aria-pressed', String(on));
+        this.rerender();
+      });
+      this.chipsEl.append(chip);
+    }
+  }
+
+  /** Esc inside a non-empty search box clears it instead of closing the board. */
+  private clearSearchOnEscape(e: KeyboardEvent): boolean {
+    if (e.composedPath()[0] !== this.searchEl || !this.searchEl.value) return false;
+    e.preventDefault();
+    this.searchEl.value = '';
+    this.filter.query = '';
+    this.rerender();
+    return true;
+  }
+
+  private rerender(): void {
+    if (this.last) this.render(this.last);
   }
 
   attach(): void {
@@ -131,30 +177,35 @@ export class BoardView {
   render(board: ProjectBoard): void {
     this.last = board;
     if (this.dragId) return; // don't rebuild under the user's cursor
+    const filtering = isFilterActive(this.filter);
     this.columnsEl.replaceChildren(
-      ...COLUMNS.map(({ id, title }) => this.renderColumn(id, title, columnCards(board, id))),
+      ...COLUMNS.map(({ id, title }) => {
+        const all = columnCards(board, id);
+        const shown = filtering ? all.filter((t) => matchesFilter(t, this.filter)) : all;
+        return this.renderColumn(id, title, shown, all, filtering);
+      }),
     );
   }
 
-  private renderColumn(colId: ColumnId, title: string, cards: Thread[]): HTMLElement {
+  private renderColumn(colId: ColumnId, title: string, cards: Thread[], all: Thread[], filtering: boolean): HTMLElement {
     const col = document.createElement('section');
     col.className = 'column';
     col.dataset.col = colId;
     const h = document.createElement('h2');
     h.innerHTML = `<span></span><span class="count"></span>`;
     h.children[0].textContent = title;
-    h.children[1].textContent = String(cards.length);
+    h.children[1].textContent = filtering ? `${cards.length} / ${all.length}` : String(cards.length);
     const list = document.createElement('div');
     list.className = 'list';
     if (!cards.length) {
       const empty = document.createElement('div');
       empty.className = 'empty';
-      empty.textContent = 'Drop a card here';
+      empty.textContent = filtering && all.length ? 'No matching threads' : 'Drop a card here';
       list.append(empty);
     }
     for (const t of cards) list.append(this.renderCard(t));
     col.append(h, list);
-    this.wireDrop(col, list, colId);
+    this.wireDrop(col, list, colId, () => ({ full: all.map((t) => t.id), visible: cards.map((t) => t.id) }));
     return col;
   }
 
@@ -220,7 +271,12 @@ export class BoardView {
 
   private placeholder = Object.assign(document.createElement('div'), { className: 'placeholder' });
 
-  private wireDrop(col: HTMLElement, list: HTMLElement, colId: ColumnId): void {
+  private wireDrop(
+    col: HTMLElement,
+    list: HTMLElement,
+    colId: ColumnId,
+    ids: () => { full: string[]; visible: string[] },
+  ): void {
     col.addEventListener('dragover', (e) => {
       if (!this.dragId) return;
       e.preventDefault();
@@ -241,7 +297,9 @@ export class BoardView {
       e.preventDefault();
       const id = this.dragId;
       if (!id) return;
-      const idx = this.indexAt(list, e.clientY);
+      const { full, visible } = ids();
+      // Hidden (filtered-out) cards keep their place in the column order.
+      const idx = fullDropIndex(full, visible, this.indexAt(list, e.clientY), id);
       this.dragId = null;
       this.clearDropUi();
       this.cb.onMove(id, colId, idx);

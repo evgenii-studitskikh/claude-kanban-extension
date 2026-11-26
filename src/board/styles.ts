@@ -33,6 +33,18 @@ header {
 header h1 { font-size: 16px; margin: 0; font-weight: 600; }
 header .status { color: var(--muted); font-size: 12px; flex: 1; min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search {
+  width: 220px; min-width: 120px; background: var(--card); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px;
+}
+.search:focus { outline: none; border-color: var(--accent); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
+  border-radius: 999px; padding: 3px 10px; font: inherit; font-size: 12px; cursor: pointer;
+}
+.chip:hover { border-color: var(--accent); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 button.ghost {
   background: transparent; border: 1px solid var(--border); color: var(--text);
   border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer;
