@@ -28,6 +28,8 @@ Chrome → `chrome://extensions` → enable **Developer mode** → **Load unpack
   The **Working**, **Needs input**, **Failed** and **Idle** chips show only threads with that native status; pick
   several to combine them. Column counters show `shown / total` while a filter is on, and `Esc` in the search box
   clears it. Dragging still works while filtered; hidden cards keep their place.
+* Threads waiting on you (native status **Needs input**) get an accent stripe and a highlighted status badge,
+  and the **▦ Kanban** button shows how many there are, even while the board is closed.
 * Drag cards between and within columns; columns and order are saved per project.
 * Cards show a fragment of the thread's last message. It is fetched while the board is open, cached, and
   refetched only after new activity in the thread. Hover the text to see whether it is the first or the last message.
