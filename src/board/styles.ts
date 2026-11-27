@@ -4,13 +4,14 @@ export const CSS = /* css */ `
 .root {
   --bg: #f7f5f0; --panel: #efebe3; --card: #ffffff; --text: #1f1e1c; --muted: #6b6760;
   --border: #ddd8cc; --accent: #c96442; --accent-text: #fff; --drop: rgba(201,100,66,.14);
+  --attention-bg: #fff6f1;
   font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--text);
 }
 @media (prefers-color-scheme: dark) {
   .root {
     --bg: #1f1e1c; --panel: #2a2926; --card: #34332f; --text: #ecebe6; --muted: #a39e94;
-    --border: #45433e; --drop: rgba(217,119,87,.22);
+    --border: #45433e; --drop: rgba(217,119,87,.22); --attention-bg: #3b302a;
   }
 }
 .launcher {
@@ -21,6 +22,11 @@ export const CSS = /* css */ `
   box-shadow: 0 4px 14px rgba(0,0,0,.25);
 }
 .launcher[hidden] { display: none; }
+.launcher-badge {
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+  background: var(--accent-text); color: var(--accent); font: 700 11px/18px inherit; text-align: center;
+}
+.launcher-badge[hidden] { display: none; }
 .overlay {
   position: fixed; inset: 0; z-index: 2147483647; background: var(--bg);
   display: flex; flex-direction: column;
@@ -70,6 +76,7 @@ button.ghost:hover { background: var(--panel); }
   padding: 10px 12px; cursor: grab; user-select: none;
 }
 .card:hover { border-color: var(--accent); }
+.card.needs-input { border-left: 4px solid var(--accent); padding-left: 9px; background: var(--attention-bg); }
 .card.dragging { opacity: .4; }
 .card.pending { opacity: .6; }
 .card .title { font-weight: 600; margin-bottom: 4px; word-break: break-word; }
@@ -77,6 +84,7 @@ button.ghost:hover { background: var(--panel); }
 .card .snippet { color: var(--muted); font-size: 12.5px; margin-top: 6px;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .badge { border: 1px solid var(--border); border-radius: 999px; padding: 0 6px; }
+.badge-attention { border-color: var(--accent); background: var(--accent); color: var(--accent-text); font-weight: 600; }
 .placeholder { height: 4px; border-radius: 2px; background: var(--accent); }
 .empty { color: var(--muted); font-size: 12.5px; text-align: center; padding: 18px 6px; }
 .peek {

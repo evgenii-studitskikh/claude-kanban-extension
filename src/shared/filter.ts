@@ -28,6 +28,21 @@ export function normalizeState(state: string | undefined): string {
   return (state ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
 }
 
+/** Native statuses that mean the thread is waiting on the user. */
+export const NEEDS_INPUT_STATES = new Set(['needs_input', 'blocked']);
+
+/** True when the thread waits on the user and is not resolved. */
+export function needsInput(t: Pick<Thread, 'state' | 'resolved'>): boolean {
+  return t.resolved !== true && NEEDS_INPUT_STATES.has(normalizeState(t.state));
+}
+
+/** Number of threads that wait on the user. */
+export function countNeedsInput(threads: Iterable<Pick<Thread, 'state' | 'resolved'>>): number {
+  let n = 0;
+  for (const t of threads) if (needsInput(t)) n++;
+  return n;
+}
+
 export function matchesFilter(t: Thread, f: BoardFilter): boolean {
   if (f.states.size && !f.states.has(normalizeState(t.state))) return false;
   const words = f.query.toLowerCase().split(/\s+/).filter(Boolean);

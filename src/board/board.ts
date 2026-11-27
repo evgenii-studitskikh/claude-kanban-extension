@@ -1,5 +1,5 @@
 import { columnCards } from '../shared/board-state';
-import { emptyFilter, fullDropIndex, isFilterActive, matchesFilter, STATUS_FILTERS } from '../shared/filter';
+import { countNeedsInput, emptyFilter, fullDropIndex, needsInput, isFilterActive, matchesFilter, STATUS_FILTERS } from '../shared/filter';
 import { COLUMNS, type ColumnId, type ProjectBoard, type Thread } from '../shared/types';
 import { ThreadPeek } from './peek';
 import { CSS } from './styles';
@@ -22,6 +22,7 @@ export class BoardView {
   private shadow: ShadowRoot;
   private overlay: HTMLElement;
   private launcher: HTMLButtonElement;
+  private launcherBadge: HTMLElement;
   private columnsEl: HTMLElement;
   private statusEl: HTMLElement;
   private toastEl: HTMLElement;
@@ -40,7 +41,7 @@ export class BoardView {
     this.shadow.innerHTML = `
       <style>${CSS}</style>
       <div class="root">
-        <button class="launcher" hidden title="Kanban (Alt+K)">▦ Kanban</button>
+        <button class="launcher" hidden title="Kanban (Alt+K)">▦ Kanban<span class="launcher-badge" hidden></span></button>
         <div class="overlay" hidden role="dialog" aria-label="Kanban">
           <header>
             <h1>Project threads</h1>
@@ -57,6 +58,7 @@ export class BoardView {
     const $ = <T extends Element>(s: string) => this.shadow.querySelector(s) as T;
     this.overlay = $('.overlay');
     this.launcher = $('.launcher');
+    this.launcherBadge = $('.launcher-badge');
     this.columnsEl = $('.columns');
     this.statusEl = $('.status');
     this.toastEl = $('.toast');
@@ -176,6 +178,7 @@ export class BoardView {
 
   render(board: ProjectBoard): void {
     this.last = board;
+    this.updateLauncherBadge(board);
     if (this.dragId) return; // don't rebuild under the user's cursor
     const filtering = isFilterActive(this.filter);
     this.columnsEl.replaceChildren(
@@ -185,6 +188,15 @@ export class BoardView {
         return this.renderColumn(id, title, shown, all, filtering);
       }),
     );
+  }
+
+  /** Count of threads waiting on the user, shown on the launcher button. */
+  private updateLauncherBadge(board: ProjectBoard): void {
+    const n = countNeedsInput(Object.values(board.threads));
+    this.launcherBadge.hidden = n === 0;
+    this.launcherBadge.textContent = String(n);
+    this.launcher.title = n ? `Kanban (Alt+K) · ${n} thread(s) need your input` : 'Kanban (Alt+K)';
+    this.launcher.setAttribute('aria-label', n ? `Kanban, ${n} thread(s) need your input` : 'Kanban');
   }
 
   private renderColumn(colId: ColumnId, title: string, cards: Thread[], all: Thread[], filtering: boolean): HTMLElement {
@@ -211,7 +223,8 @@ export class BoardView {
 
   private renderCard(t: Thread): HTMLElement {
     const card = document.createElement('article');
-    card.className = 'card' + (this.pendingIds.has(t.id) ? ' pending' : '');
+    const waiting = needsInput(t);
+    card.className = 'card' + (waiting ? ' needs-input' : '') + (this.pendingIds.has(t.id) ? ' pending' : '');
     card.draggable = true;
     card.dataset.id = t.id;
     card.tabIndex = 0;
@@ -229,8 +242,9 @@ export class BoardView {
     }
     if (t.state) {
       const b = document.createElement('span');
-      b.className = 'badge';
+      b.className = 'badge' + (waiting ? ' badge-attention' : '');
       b.textContent = t.state;
+      if (waiting) b.title = 'Waiting on you';
       meta.append(b);
     }
     card.append(title, meta);
