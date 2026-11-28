@@ -31,6 +31,10 @@ Chrome → `chrome://extensions` → enable **Developer mode** → **Load unpack
 * Threads waiting on you (native status **Needs input**) get an accent stripe and a highlighted status badge,
   and the **▦ Kanban** button shows how many there are, even while the board is closed.
 * Drag cards between and within columns; columns and order are saved per project.
+* Columns are customizable per project: **+ Add column** adds one (before **Resolved**), double-click a column
+  title to rename it, and the **⋯** menu renames, recolors, moves a column left/right or deletes it. Deleting a
+  column moves its cards to the bottom of **Open**. **Open** and **Resolved** can be renamed, recolored and moved
+  but not deleted: new and reopened threads land in **Open**, and **Resolved** syncs with Claude.
 * Cards show a fragment of the thread's last message. It is fetched while the board is open, cached, and
   refetched only after new activity in the thread. Hover the text to see whether it is the first or the last message.
 * Navigating to another project switches the board without a page reload.
@@ -46,7 +50,8 @@ From then on, dragging a card into **Resolved** replays it (and the inverse requ
 Until the template is learned, moving a card to **Resolved** is saved locally only.
 
 Column rules: the native resolve status always wins. A thread resolved in Claude goes to **Resolved**; a thread
-reopened in Claude goes back to **Open**. **Open** and **In progress** are local only.
+reopened in Claude goes back to **Open**. All other columns (including **In progress** and custom ones) are local only.
+A new thread that is already working starts in **In progress** if that column still exists, otherwise in **Open**.
 
 ## Architecture
 
@@ -55,7 +60,8 @@ reopened in Claude goes back to **Open**. **Open** and **In progress** are local
 | `src/shared/claude-endpoints.ts` | **All** assumptions about claude.ai: URLs, id formats, JSON field names, DOM selectors, resolve-detection rules. Fix breakages here. |
 | `src/page/hook.ts` | Runs in the page's JS world: wraps `fetch`/`XHR`, forwards JSON containing threads and resolve-like requests, and replays requests. |
 | `src/shared/extract.ts` | Heuristics that find thread-like objects in any JSON; learning the resolve template. |
-| `src/shared/board-state.ts` | Column and card-order logic (unit tested). |
+| `src/shared/board-state.ts` | Card placement and card-order logic (unit tested). |
+| `src/shared/columns.ts` | Custom columns: add, rename, recolor, reorder, delete (unit tested). |
 | `src/content/*` | Content script: per-project routing, DOM fallback, storage, sync. |
 | `src/board/*` | Board UI inside a Shadow DOM. `peek.ts` is the thread chat popup. |
 

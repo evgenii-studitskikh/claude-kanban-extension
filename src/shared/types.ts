@@ -1,6 +1,22 @@
-export type ColumnId = 'open' | 'in_progress' | 'resolved';
+/**
+ * Column id. The built-in ids are `open`, `in_progress` and `resolved`;
+ * user-made columns get generated ids (`col_…`).
+ */
+export type ColumnId = string;
 
-export const COLUMNS: { id: ColumnId; title: string }[] = [
+/** Where new and reopened threads land. Can't be deleted. */
+export const OPEN_COLUMN = 'open';
+/** Synced with claude.ai's native resolve. Can't be deleted. */
+export const RESOLVED_COLUMN = 'resolved';
+
+export interface ColumnDef {
+  id: ColumnId;
+  title: string;
+  /** CSS color (hex) of the column accent; undefined = no accent. */
+  color?: string;
+}
+
+export const DEFAULT_COLUMNS: readonly ColumnDef[] = [
   { id: 'open', title: 'Open' },
   { id: 'in_progress', title: 'In progress' },
   { id: 'resolved', title: 'Resolved' },
@@ -50,7 +66,10 @@ export interface CardEntry {
 }
 
 export interface ProjectBoard {
+  /** Columns in display order; undefined = DEFAULT_COLUMNS (boards saved before custom columns). */
+  columns?: ColumnDef[];
   entries: Record<string, CardEntry>;
+  /** Manual card order per column id. A column may have no list yet. */
   order: Record<ColumnId, string[]>;
   /** Last known thread metadata, so the board renders instantly. */
   threads: Record<string, Thread>;
