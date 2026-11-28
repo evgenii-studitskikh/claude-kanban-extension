@@ -57,19 +57,60 @@ button.ghost {
 }
 button.ghost:hover { background: var(--panel); }
 .columns {
-  flex: 1; display: grid; grid-template-columns: repeat(3, minmax(240px, 1fr));
-  gap: 14px; padding: 16px 20px; overflow: auto;
+  flex: 1; display: grid; grid-template-columns: repeat(3, minmax(240px, 1fr)) 150px;
+  align-items: stretch; gap: 14px; padding: 16px 20px; overflow: auto;
 }
 .column {
   background: var(--panel); border-radius: 12px; display: flex; flex-direction: column;
   min-height: 0; border: 2px solid transparent;
 }
 .column.drop-target { border-color: var(--accent); background: var(--drop); }
+.column.colored { box-shadow: inset 0 4px 0 var(--col-color); }
 .column h2 {
-  font-size: 13px; margin: 0; padding: 12px 14px 8px; font-weight: 600;
-  display: flex; justify-content: space-between; color: var(--muted);
+  position: relative;
+  font-size: 13px; margin: 0; padding: 12px 8px 8px 14px; font-weight: 600;
+  display: flex; align-items: center; gap: 6px; color: var(--muted);
   text-transform: uppercase; letter-spacing: .03em;
 }
+.column.colored h2 { color: var(--col-color); }
+.col-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
+.col-menu-btn {
+  background: transparent; border: 0; color: var(--muted); border-radius: 6px;
+  width: 24px; height: 22px; padding: 0; font: 700 14px/1 inherit; cursor: pointer; opacity: .6;
+}
+.column:hover .col-menu-btn, .col-menu-btn[aria-expanded="true"] { opacity: 1; }
+.col-menu-btn:hover, .col-menu-btn[aria-expanded="true"] { background: var(--card); }
+.col-menu {
+  position: absolute; top: 36px; right: 8px; z-index: 5; min-width: 180px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 6px;
+  display: flex; flex-direction: column; gap: 2px; box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  text-transform: none; letter-spacing: 0; font-weight: 400;
+}
+.col-menu > button {
+  background: transparent; border: 0; color: var(--text); text-align: left;
+  border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 13px; cursor: pointer;
+}
+.col-menu > button:hover:not(:disabled) { background: var(--panel); }
+.col-menu > button:disabled { color: var(--muted); cursor: default; opacity: .6; }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 8px; }
+.swatch {
+  width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: pointer;
+  outline: 1px solid var(--border);
+}
+.swatch.selected { border-color: var(--card); outline: 2px solid var(--text); }
+.swatch-none { background: linear-gradient(135deg, transparent 45%, var(--muted) 45%, var(--muted) 55%, transparent 55%), var(--card); }
+.col-input {
+  flex: 1; min-width: 0; background: var(--card); color: var(--text);
+  border: 1px solid var(--accent); border-radius: 6px; padding: 3px 6px;
+  font: inherit; font-size: 13px; text-transform: none; letter-spacing: 0;
+}
+.col-input:focus { outline: none; }
+.add-column {
+  align-self: start; background: transparent; border: 1px dashed var(--border); color: var(--muted);
+  border-radius: 12px; padding: 12px; font: inherit; font-size: 13px; cursor: pointer; text-align: left;
+}
+.add-column:hover { border-color: var(--accent); color: var(--text); }
+.columns > .col-input { align-self: start; padding: 10px 12px; }
 .list { flex: 1; overflow-y: auto; padding: 4px 10px 12px; display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
 .card {
   background: var(--card); border: 1px solid var(--border); border-radius: 10px;

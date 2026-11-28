@@ -31,7 +31,8 @@ import {
   parseLastMessage,
   templateUrlFor,
 } from '../shared/extract';
-import type { ColumnId, ProjectBoard, RequestTemplate, ResolveTemplates, Thread } from '../shared/types';
+import { applyColumnAction, effectiveColumn, type ColumnAction } from '../shared/columns';
+import { RESOLVED_COLUMN, type ColumnId, type ProjectBoard, type RequestTemplate, type ResolveTemplates, type Thread } from '../shared/types';
 import { onPageMessage, replay } from './bridge';
 import { findThreadLink, scanDom } from './dom-source';
 import { loadBoard, loadSettings, loadTemplates, saveBoard, saveTemplates, type Settings } from './storage';
@@ -237,13 +238,22 @@ async function syncResolve(threadId: string, resolved: boolean): Promise<boolean
 
 function onMove(id: string, to: ColumnId, index: number): void {
   if (!board) return;
-  const from = board.entries[id]?.column ?? 'open';
+  const from = effectiveColumn(board, id);
   board = moveCard(board, id, to, index);
   void persist();
   render();
-  if (from !== to && (to === 'resolved' || from === 'resolved')) {
-    void syncResolve(id, to === 'resolved');
+  if (from !== to && (to === RESOLVED_COLUMN || from === RESOLVED_COLUMN)) {
+    void syncResolve(id, to === RESOLVED_COLUMN);
   }
+}
+
+function onColumnAction(action: ColumnAction): void {
+  if (!board) return;
+  const next = applyColumnAction(board, action);
+  if (next === board) return;
+  board = next;
+  void persist();
+  render();
 }
 
 function onOpen(id: string, newTab: boolean): void {
@@ -368,6 +378,7 @@ async function main(): Promise<void> {
   }
   view = new BoardView({
     onMove,
+    onColumnAction,
     onOpen,
     onRefresh: () => void refresh(),
     threadHref: (id) => (projectId ? threadUrl(projectId, id) : null),

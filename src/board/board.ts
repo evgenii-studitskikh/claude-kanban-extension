@@ -1,11 +1,20 @@
 import { columnCards } from '../shared/board-state';
 import { countNeedsInput, emptyFilter, fullDropIndex, needsInput, isFilterActive, matchesFilter, STATUS_FILTERS } from '../shared/filter';
-import { COLUMNS, type ColumnId, type ProjectBoard, type Thread } from '../shared/types';
+import {
+  boardColumns,
+  COLUMN_COLORS,
+  isProtectedColumn,
+  MAX_COLUMN_TITLE,
+  type ColumnAction,
+} from '../shared/columns';
+import { OPEN_COLUMN, type ColumnDef, type ColumnId, type ProjectBoard, type Thread } from '../shared/types';
 import { ThreadPeek } from './peek';
 import { CSS } from './styles';
 
 export interface BoardCallbacks {
   onMove(threadId: string, to: ColumnId, index: number): void;
+  /** Add, rename, recolor, reorder or delete a column. */
+  onColumnAction(action: ColumnAction): void;
   onOpen(threadId: string, newTab: boolean): void;
   onRefresh(): void;
   /** URL of a thread page, or null when not on a project. */
@@ -34,6 +43,10 @@ export class BoardView {
   private filter = emptyFilter();
   private searchEl: HTMLInputElement;
   private chipsEl: HTMLElement;
+  /** A column menu or title input is open: don't rebuild the columns under it. */
+  private editing: (() => void) | null = null;
+  /** A render was skipped while editing; catch up when editing ends. */
+  private renderSkipped = false;
 
   constructor(private cb: BoardCallbacks) {
     this.host = document.createElement('claude-kanban-root');
@@ -74,7 +87,8 @@ export class BoardView {
     $('[data-act="close"]').addEventListener('click', () => this.close());
     $('[data-act="refresh"]').addEventListener('click', () => this.cb.onRefresh());
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.peek.isOpen) this.peek.close();
+      if (e.key === 'Escape' && this.editing) this.stopEditing();
+      else if (e.key === 'Escape' && this.peek.isOpen) this.peek.close();
       else if (e.key === 'Escape' && this.isOpen && this.clearSearchOnEscape(e)) return;
       else if (e.key === 'Escape' && this.isOpen) this.close();
       if (e.altKey && (e.key === 'k' || e.key === 'K' || e.code === 'KeyK') && !this.launcher.hidden) {
@@ -179,15 +193,159 @@ export class BoardView {
   render(board: ProjectBoard): void {
     this.last = board;
     this.updateLauncherBadge(board);
-    if (this.dragId) return; // don't rebuild under the user's cursor
+    if (this.dragId || this.editing) {
+      this.renderSkipped = true; // don't rebuild under the user's cursor
+      return;
+    }
+    this.renderSkipped = false;
     const filtering = isFilterActive(this.filter);
+    const cols = boardColumns(board);
+    this.columnsEl.style.gridTemplateColumns = `repeat(${cols.length}, minmax(240px, 1fr)) 150px`;
     this.columnsEl.replaceChildren(
-      ...COLUMNS.map(({ id, title }) => {
-        const all = columnCards(board, id);
+      ...cols.map((def, i) => {
+        const all = columnCards(board, def.id);
         const shown = filtering ? all.filter((t) => matchesFilter(t, this.filter)) : all;
-        return this.renderColumn(id, title, shown, all, filtering);
+        return this.renderColumn(def, i, cols.length, shown, all, filtering);
       }),
+      this.renderAddColumn(),
     );
+  }
+
+  /* ---------------------------- column editing --------------------------- */
+
+  private startEditing(stop: () => void): void {
+    // Close the previous menu/input without rebuilding: the caller's elements must stay attached.
+    const prev = this.editing;
+    this.editing = null;
+    prev?.();
+    this.editing = stop;
+  }
+
+  /**
+   * Close the open column menu / input (without committing an input). Rebuilds
+   * the columns only if a render was skipped meanwhile, so a click that ended
+   * editing still reaches its (unchanged) target.
+   */
+  private stopEditing(): void {
+    const stop = this.editing;
+    this.editing = null;
+    stop?.();
+    if (this.renderSkipped) this.rerender();
+  }
+
+  /** Swap `target` for a text input. Enter or blur commits, Esc cancels. */
+  private inlineInput(target: HTMLElement, value: string, placeholder: string, commit: (v: string) => void): void {
+    const input = document.createElement('input');
+    input.className = 'col-input';
+    input.value = value;
+    input.placeholder = placeholder;
+    input.maxLength = MAX_COLUMN_TITLE;
+    input.setAttribute('aria-label', placeholder);
+    let done = false;
+    const finish = (save: boolean) => {
+      if (done) return;
+      done = true;
+      const v = input.value.trim();
+      if (this.editing === cancel) this.editing = null;
+      input.replaceWith(target);
+      if (save && v && v !== value) commit(v);
+      else if (this.renderSkipped && !this.editing) this.rerender();
+    };
+    const cancel = () => finish(false);
+    this.startEditing(cancel);
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation(); // keep Esc/Alt+K away from the board shortcuts
+      if (e.key === 'Enter') finish(true);
+      else if (e.key === 'Escape') finish(false);
+    });
+    input.addEventListener('blur', () => finish(true));
+    target.replaceWith(input);
+    input.focus();
+    input.select();
+  }
+
+  private openColumnTitle(): string {
+    const open = this.last && boardColumns(this.last).find((c) => c.id === OPEN_COLUMN);
+    return open ? `"${open.title}"` : 'the first column';
+  }
+
+  private renderAddColumn(): HTMLElement {
+    const btn = document.createElement('button');
+    btn.className = 'add-column';
+    btn.type = 'button';
+    btn.textContent = '+ Add column';
+    btn.addEventListener('click', () =>
+      this.inlineInput(btn, '', 'Column name', (title) => this.cb.onColumnAction({ type: 'add', title })),
+    );
+    return btn;
+  }
+
+  private openColumnMenu(def: ColumnDef, index: number, count: number, anchor: HTMLElement, titleEl: HTMLElement): void {
+    const menu = document.createElement('div');
+    menu.className = 'col-menu';
+    menu.setAttribute('role', 'menu');
+    const act = (a: ColumnAction) => {
+      this.stopEditing();
+      this.cb.onColumnAction(a);
+    };
+    const item = (label: string, onClick: () => void, disabled = false, hint = '') => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('role', 'menuitem');
+      b.textContent = label;
+      b.disabled = disabled;
+      if (hint) b.title = hint;
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onClick();
+      });
+      return b;
+    };
+    const swatches = document.createElement('div');
+    swatches.className = 'swatches';
+    swatches.setAttribute('aria-label', 'Column color');
+    for (const color of [undefined, ...COLUMN_COLORS]) {
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.className = 'swatch' + (color ? '' : ' swatch-none') + (def.color === color ? ' selected' : '');
+      if (color) sw.style.background = color;
+      sw.title = color ? `Color ${color}` : 'No color';
+      sw.setAttribute('aria-label', sw.title);
+      sw.addEventListener('click', (e) => {
+        e.stopPropagation();
+        act({ type: 'color', id: def.id, color });
+      });
+      swatches.append(sw);
+    }
+    const protectedCol = isProtectedColumn(def.id);
+    menu.append(
+      item('Rename', () => {
+        this.inlineInput(titleEl, def.title, 'Column name', (title) =>
+          this.cb.onColumnAction({ type: 'rename', id: def.id, title }),
+        );
+      }),
+      swatches,
+      item('Move left', () => act({ type: 'move', id: def.id, index: index - 1 }), index === 0),
+      item('Move right', () => act({ type: 'move', id: def.id, index: index + 1 }), index === count - 1),
+      item(
+        'Delete column',
+        () => act({ type: 'remove', id: def.id }),
+        protectedCol,
+        protectedCol ? `${def.title} can't be deleted` : `Its cards move to ${this.openColumnTitle()}`,
+      ),
+    );
+    menu.addEventListener('click', (e) => e.stopPropagation());
+    const onOutside = (e: MouseEvent) => {
+      if (!e.composedPath().includes(menu) && !e.composedPath().includes(anchor)) this.stopEditing();
+    };
+    this.startEditing(() => {
+      menu.remove();
+      anchor.setAttribute('aria-expanded', 'false');
+      this.shadow.removeEventListener('mousedown', onOutside as EventListener, true);
+    });
+    this.shadow.addEventListener('mousedown', onOutside as EventListener, true);
+    anchor.setAttribute('aria-expanded', 'true');
+    anchor.after(menu);
   }
 
   /** Count of threads waiting on the user, shown on the launcher button. */
@@ -199,14 +357,37 @@ export class BoardView {
     this.launcher.setAttribute('aria-label', n ? `Kanban, ${n} thread(s) need your input` : 'Kanban');
   }
 
-  private renderColumn(colId: ColumnId, title: string, cards: Thread[], all: Thread[], filtering: boolean): HTMLElement {
+  private renderColumn(
+    def: ColumnDef,
+    index: number,
+    count: number,
+    cards: Thread[],
+    all: Thread[],
+    filtering: boolean,
+  ): HTMLElement {
+    const colId = def.id;
     const col = document.createElement('section');
-    col.className = 'column';
+    col.className = 'column' + (def.color ? ' colored' : '');
     col.dataset.col = colId;
+    if (def.color) col.style.setProperty('--col-color', def.color);
     const h = document.createElement('h2');
-    h.innerHTML = `<span></span><span class="count"></span>`;
-    h.children[0].textContent = title;
+    h.innerHTML = `<span class="col-title"></span><span class="count"></span><button class="col-menu-btn" type="button" aria-haspopup="menu" aria-expanded="false">⋯</button>`;
+    const titleEl = h.children[0] as HTMLElement;
+    titleEl.textContent = def.title;
+    titleEl.title = 'Double-click to rename';
+    titleEl.addEventListener('dblclick', () =>
+      this.inlineInput(titleEl, def.title, 'Column name', (title) =>
+        this.cb.onColumnAction({ type: 'rename', id: colId, title }),
+      ),
+    );
     h.children[1].textContent = filtering ? `${cards.length} / ${all.length}` : String(cards.length);
+    const menuBtn = h.children[2] as HTMLButtonElement;
+    menuBtn.title = `Column options: ${def.title}`;
+    menuBtn.setAttribute('aria-label', menuBtn.title);
+    menuBtn.addEventListener('click', () => {
+      if (this.editing && menuBtn.getAttribute('aria-expanded') === 'true') this.stopEditing();
+      else this.openColumnMenu(def, index, count, menuBtn, titleEl);
+    });
     const list = document.createElement('div');
     list.className = 'list';
     if (!cards.length) {
